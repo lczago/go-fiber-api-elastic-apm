@@ -1,0 +1,94 @@
+version: "3.8"
+
+services:
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
+    container_name: elasticsearch
+    user: root
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=es-docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - http.cors.enabled=true
+      - http.cors.allow-origin="*"
+      - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - observability
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.10
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    networks:
+      - observability
+    depends_on:
+      - elasticsearch
+
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:7.17.10
+    container_name: metricbeat
+    user: root
+    environment:
+      - strict.perms=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./beats/metric/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml
+    restart: on-failure
+    networks:
+      - observability
+    depends_on:
+      - elasticsearch
+      - kibana
+
+  heartbeat:
+    image: docker.elastic.co/beats/heartbeat:7.17.10
+    container_name: heartbeat
+    user: root
+    volumes:
+      - ./beats/heartbeat/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml
+    environment:
+      - strict.perms=false
+      - setup.kibana.host=kibana:5601
+    restart: on-failure
+    networks:
+      - observability
+    depends_on:
+      - elasticsearch
+      - kibana
+
+  apm:
+    image: docker.elastic.co/apm/apm-server-oss:7.17.10
+    container_name: apm
+    volumes:
+      - ./apm/apm-server.yml:/usr/share/apm-server/apm-server.yml
+    ports:
+      - "8200:8200"
+    restart: on-failure
+    networks:
+      - observability
+
+  go-api:
+    build: ./go-api/.
+    container_name: go-api
+    ports:
+      - "8080:8080"
+    networks:
+      - observability
+
+networks:
+  observability:
+    external: true
