@@ -1,11 +1,7 @@
-version: "3.8"
-
 services:
-
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
     container_name: elasticsearch
-    user: root
     environment:
       - node.name=elasticsearch
       - cluster.name=es-docker-cluster
@@ -24,6 +20,11 @@ services:
       - "9200:9200"
     networks:
       - observability
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
 
   kibana:
     image: docker.elastic.co/kibana/kibana:7.17.10
@@ -36,12 +37,12 @@ services:
     networks:
       - observability
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
 
   metricbeat:
     image: docker.elastic.co/beats/metricbeat:7.17.10
     container_name: metricbeat
-    user: root
     environment:
       - strict.perms=false
     volumes:
@@ -51,13 +52,14 @@ services:
     networks:
       - observability
     depends_on:
-      - elasticsearch
-      - kibana
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
 
   heartbeat:
     image: docker.elastic.co/beats/heartbeat:7.17.10
     container_name: heartbeat
-    user: root
     volumes:
       - ./beats/heartbeat/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml
     environment:
@@ -67,8 +69,10 @@ services:
     networks:
       - observability
     depends_on:
-      - elasticsearch
-      - kibana
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
 
   apm:
     image: docker.elastic.co/apm/apm-server-oss:7.17.10
@@ -80,6 +84,9 @@ services:
     restart: on-failure
     networks:
       - observability
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
 
   go-api:
     build: ./go-api/.
@@ -88,7 +95,10 @@ services:
       - "8080:8080"
     networks:
       - observability
+    depends_on:
+      apm:
+        condition: service_healthy
 
 networks:
   observability:
-    external: true
+    driver: bridge

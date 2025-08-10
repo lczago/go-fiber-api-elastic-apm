@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -20,9 +21,7 @@ func main() {
 	fiberApp.Use(apmfiber.Middleware())
 
 	fiberApp.Get("/", func(ctx *fiber.Ctx) error {
-		return ctx.Status(fiber.StatusOK).JSON(map[string]string{
-			"entry": "hello",
-		})
+		return ctx.SendStatus(fiber.StatusOK)
 	})
 
 	fiberApp.Get("/error", func(ctx *fiber.Ctx) error {
