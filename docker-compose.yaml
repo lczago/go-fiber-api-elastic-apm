@@ -21,24 +21,10 @@ services:
     networks:
       - observability
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'" ]
       interval: 10s
       timeout: 10s
       retries: 120
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.17.10
-    container_name: kibana
-    ports:
-      - "5601:5601"
-    environment:
-      ELASTICSEARCH_URL: http://elasticsearch:9200
-      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
-    networks:
-      - observability
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
 
   metricbeat:
     image: docker.elastic.co/beats/metricbeat:7.17.10
@@ -55,7 +41,7 @@ services:
       elasticsearch:
         condition: service_healthy
       kibana:
-        condition: service_healthy
+        condition: service_started
 
   heartbeat:
     image: docker.elastic.co/beats/heartbeat:7.17.10
@@ -65,13 +51,25 @@ services:
     environment:
       - strict.perms=false
       - setup.kibana.host=kibana:5601
-    restart: on-failure
     networks:
       - observability
     depends_on:
       elasticsearch:
         condition: service_healthy
       kibana:
+        condition: service_started
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.10
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    networks:
+      - observability
+    depends_on:
+      elasticsearch:
         condition: service_healthy
 
   apm:
@@ -81,7 +79,6 @@ services:
       - ./apm/apm-server.yml:/usr/share/apm-server/apm-server.yml
     ports:
       - "8200:8200"
-    restart: on-failure
     networks:
       - observability
     depends_on:
@@ -97,7 +94,7 @@ services:
       - observability
     depends_on:
       apm:
-        condition: service_healthy
+        condition: service_started
 
 networks:
   observability:
